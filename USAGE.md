@@ -199,7 +199,8 @@ https://github.com/bluesgwerz-lgtm/st-toy-sync
 
 **状态「已连接」但设备列表空**
 - 先在 Intiface Central 里扫描并连接玩具，扩展这边会自动刷新
-- 玩具没被 Intiface 认出来 → 查 [iostindex.com](https://iostindex.com/) 确认支持
+- 玩具没被 Intiface 认出来 → 查 [iostindex.com](https://iostindex.com/) 确认支持；
+  确实不在列表？走 [DIY.md](DIY.md)，反编译官方 APP + HTTP 后端，任意 BLE 玩具都能接
 
 **AI 不插标记**
 - 提示词贴进去了吗？在生效的预设里吗？
@@ -228,6 +229,10 @@ https://github.com/bluesgwerz-lgtm/st-toy-sync
 
 设备驱动、节奏引擎全部自己实现，模式名语义自定。地址默认
 `http://localhost:9090`。
+
+**不知道怎么实现设备驱动？** [DIY.md](DIY.md) 有一套现成方案：反编译官方 APP
+拿到玩具协议 → Termux 起本地服务器 + 控制页面 → 扩展指过去。任意 BLE
+蓝牙玩具都能接，且拿到的是四通道全功能。
 
 ---
 

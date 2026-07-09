@@ -61,7 +61,9 @@ Rules:
   - `HTTP 模式服务器`（进阶）：扩展只把模式名 GET 到
     `你的地址/set?mode=xxx`，设备驱动完全自己实现。适合自定义硬件或
     想要更细控制粒度的人。服务器端约定：`GET /set?mode=xxx` 切模式，
-    `GET /state` 返回 `{"mode":"xxx"}`
+    `GET /state` 返回 `{"mode":"xxx"}`。
+    **玩具不被 Intiface 支持的，看 [DIY.md](DIY.md)** —— 反编译官方 APP +
+    本地服务器，任意 BLE 蓝牙玩具都能接，且四通道全功能
 - **⏹ 全部停止**：常驻急停按钮
 
 ## 安全设计
