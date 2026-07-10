@@ -199,6 +199,32 @@ https://github.com/bluesgwerz-lgtm/st-toy-sync
 | iPhone / iPad | ❌ 单机不行 | Intiface 无 iOS 版（App Store 政策），且 iOS 浏览器不支持 Web Bluetooth |
 | iPhone + 电脑组合 | ⚠️ 有条件 | Intiface 跑电脑上并监听所有网卡，扩展地址填电脑局域网 IP。**仅限 HTTP 访问的酒馆**——HTTPS 云酒馆会以混合内容为由拦截对局域网 IP 的 ws:// 连接（localhost 有豁免，局域网 IP 没有）。玩具不被 Intiface 支持也走得通：DIY 路线的蓝牙端同样可以搬到电脑上，见 [DIY.md](DIY.md) 的「电脑版变体」 |
 
+### iPhone + 电脑组合：分步
+
+上表 ⚠️ 那条路的完整操作（Intiface 路线；玩具不被 Intiface 支持的，
+把第 2 步和第 5 步的扩展设置换成 [DIY.md](DIY.md)「电脑版变体」即可，
+其余步骤相同）：
+
+1. **电脑自建酒馆，并放开局域网访问**。SillyTavern 默认只监听本机
+   且开着白名单，手机直接访问会拒绝连接或 403 —— 改酒馆根目录的
+   `config.yaml`：`listen: true`，然后把手机 IP 加进 `whitelist` 列表
+   （或者干脆 `whitelistMode: false`，但注意这样同一网络里任何设备
+   都能打开你的酒馆）。改完重启酒馆
+2. **电脑装 Intiface Central**，设置里打开 **Listen on All Interfaces**
+   （默认只听 127.0.0.1，手机连不进来），然后重启服务器（▶）
+3. **查电脑的局域网 IP**：Windows 命令行输 `ipconfig` 看「IPv4 地址」，
+   macOS 在系统设置 → Wi-Fi → 详细信息，一般形如 `192.168.x.x`
+4. **防火墙放行**：首次启动酒馆/Intiface 时 Windows 弹窗选「允许」；
+   没弹窗又连不上，就手动放行酒馆端口（默认 8000）和 Intiface 的 12345
+5. **手机 Safari 打开 `http://电脑IP:8000`** 进酒馆，扩展设置里把
+   服务器地址从 `ws://127.0.0.1:12345` 改成 `ws://电脑IP:12345`，点「连接」
+6. 玩具在**电脑**的蓝牙范围内（约 10 米）由 Intiface 扫描连接，
+   手机只是块屏幕
+
+注意事项：手机和电脑必须在**同一 Wi-Fi**；玩的时候保持 Safari 在前台
+（第 5 节手机使用注意同样适用）；扩展的屏幕常亮在 iOS 上需要
+**iOS 16.4+**，更老的系统请手动把「自动锁定」调成「永不」。
+
 另外注意：「Install extension」是**酒馆服务器**执行 git clone。本地/Termux
 部署的酒馆需要该设备能访问 GitHub（国内环境把代理开成全局/TUN 模式再装）；
 装不上也可以下载仓库 zip 解压到

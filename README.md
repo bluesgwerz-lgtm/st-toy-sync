@@ -13,7 +13,9 @@ Intiface 的设备库覆盖数百款主流蓝牙玩具，无需关心具体型�
 
 1. **装本扩展**：SillyTavern → 扩展面板 → Install extension → 粘贴本仓库地址
 2. **装 Intiface Central**：[intiface.com/central](https://intiface.com/central/)
-   （Windows / macOS / Linux / Android），启动它，点 ▶ 开启服务器，在里面连接你的玩具
+   （Windows / macOS / Linux / Android，**无 iOS 版**——iPhone/iPad 用户
+   先看 [USAGE.md 7.5 平台表](USAGE.md#75-平台兼容性)，需要搭配一台电脑），
+   启动它，点 ▶ 开启服务器，在里面连接你的玩具
 3. **教你的 AI 插标记**：把下面这段提示词加进你的预设 / 系统提示 / 角色卡任意位置
 
 ```
