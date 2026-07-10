@@ -35,6 +35,14 @@
 
     const clamp = x => Math.max(0, Math.min(1, x));
 
+    let curMode = 'stop'; // 顶栏状态灯 + 面板"当前模式"共用
+
+    function setModeDisplay(mode) {
+        curMode = mode;
+        $('#toysync_mode').text('当前模式：' + mode);
+        updateTopIcon();
+    }
+
     /* ================= Buttplug 客户端（协议 v3，手写最小实现） ================= */
 
     const bp = {
@@ -48,6 +56,7 @@
 
     function bpStatus(text) {
         $('#toysync_status').text(text);
+        updateTopIcon(); // 连接状态变化要同步到顶栏状态灯
     }
 
     function bpSend(type, payload = {}) {
@@ -297,7 +306,7 @@
         engine.step = 0;
         bpSend('StopAllDevices');
         bp.devices.forEach(d => { d.last = {}; d.nextLinear = 0; });
-        $('#toysync_mode').text('当前模式：stop');
+        setModeDisplay('stop');
     }
 
     function enginePlay(mode) {
@@ -311,7 +320,7 @@
             dispatch(p.f(engine.step));
             engine.step++;
         }, p.tick);
-        $('#toysync_mode').text('当前模式：' + mode);
+        setModeDisplay(mode);
     }
 
     function dispatch(ch) {
@@ -373,13 +382,13 @@
         console.log(`[${EXT}] → ${mode}`);
         if (settings.backend === 'http') sendHttp(mode);
         else enginePlay(mode);
-        $('#toysync_mode').text('当前模式：' + mode);
+        setModeDisplay(mode);
     }
 
     function applyStop() {
         if (settings.backend === 'http') sendHttp('stop');
         else engineStop();
-        $('#toysync_mode').text('当前模式：stop');
+        setModeDisplay('stop');
     }
 
     /* ================= 标记提取 ================= */
@@ -438,6 +447,69 @@
         }
     });
 
+    /* ================= 顶栏状态灯 / 急停 =================
+       灰=禁用 · 橙=已启用但未连上后端 · 正常色=待机 · 粉色跳动=播放中
+       单击=立即全停（禁用状态也照发，急停永远可用）
+       双击或长按≈0.6秒=启用⇄禁用 */
+
+    function setEnabled(on) {
+        settings.enabled = on;
+        if (!on) applyStop(); // 关总开关必停机
+        $('#toysync_enabled').prop('checked', on);
+        ctx.saveSettingsDebounced();
+        updateTopIcon();
+        toastr.info(on ? '已启用' : '已禁用', 'Toy Sync');
+    }
+
+    function updateTopIcon() {
+        const el = $('#toysync_icon');
+        if (!el.length) return;
+        // http 后端 no-cors 探不到存活，不标未连接色
+        const connected = settings.backend !== 'intiface' || (bp.ws && bp.ws.readyState === 1);
+        el.toggleClass('toy-off', !settings.enabled);
+        el.toggleClass('toy-warn', settings.enabled && !connected);
+        el.toggleClass('toy-active', settings.enabled && connected && curMode !== 'stop');
+        let state;
+        if (!settings.enabled) state = '已禁用';
+        else if (!connected) state = '未连接 Intiface';
+        else state = curMode;
+        el.attr('title', `Toy Sync：${state}\n单击=立即全停 · 双击/长按=启用⇄禁用`);
+    }
+
+    function addTopIcon() {
+        const holder = $('#top-settings-holder');
+        if (!holder.length) return; // 顶栏结构对不上就放弃图标，不影响核心功能
+
+        $('head').append(`<style>
+            #toysync_icon.toy-off { opacity: .35; }
+            #toysync_icon.toy-warn { color: #e6a23c; }
+            #toysync_icon.toy-active { color: #ff6b81; animation: toysync-pulse 1.1s ease-in-out infinite; }
+            @keyframes toysync-pulse { 50% { transform: scale(1.25); opacity: .7; } }
+        </style>`);
+        holder.append(`
+        <div id="toysync_drawer" class="drawer">
+            <div class="drawer-toggle">
+                <div id="toysync_icon" class="drawer-icon fa-solid fa-heart-pulse fa-fw closedIcon interactable" tabindex="0"></div>
+            </div>
+        </div>`);
+
+        const el = $('#toysync_icon');
+        let pressTimer = null, longPressed = false;
+        el.on('pointerdown', () => {
+            longPressed = false;
+            pressTimer = setTimeout(() => { longPressed = true; setEnabled(!settings.enabled); }, 600);
+        });
+        el.on('pointerup pointerleave pointercancel', () => clearTimeout(pressTimer));
+        el.on('click', () => {
+            if (longPressed) { longPressed = false; return; } // 长按抬手附带的 click，吃掉
+            applyStop();
+            toastr.info('已全部停止', 'Toy Sync');
+        });
+        el.on('dblclick', () => setEnabled(!settings.enabled)); // 双击前的两次单击各触发一次停止，无害
+        el.on('contextmenu', e => e.preventDefault()); // 手机长按不弹系统菜单
+        updateTopIcon();
+    }
+
     /* ================= 设置面板 ================= */
 
     function addSettingsUI() {
@@ -486,9 +558,7 @@
         $('#extensions_settings2').append(html);
 
         $('#toysync_enabled').prop('checked', settings.enabled).on('change', function () {
-            settings.enabled = this.checked;
-            if (!this.checked) applyStop(); // 关总开关必停机
-            ctx.saveSettingsDebounced();
+            setEnabled(this.checked);
         });
         $('#toysync_hide').prop('checked', settings.hideMarkers).on('change', function () {
             settings.hideMarkers = this.checked;
@@ -498,6 +568,7 @@
             applyStop(); // 切后端前先停旧后端
             settings.backend = this.value;
             toggleBlocks();
+            updateTopIcon(); // "未连接"判定依赖后端类型
             ctx.saveSettingsDebounced();
         });
         $('#toysync_ws').val(settings.intifaceUrl).on('input', function () {
@@ -540,6 +611,7 @@
 
     jQuery(() => {
         addSettingsUI();
+        addTopIcon();
         ctx.eventSource.on(ctx.eventTypes.MESSAGE_RECEIVED, onMessageReceived);
         ctx.eventSource.on(ctx.eventTypes.CHARACTER_MESSAGE_RENDERED, onMessageRendered);
         ctx.eventSource.on(ctx.eventTypes.CHAT_CHANGED, onChatChanged);
