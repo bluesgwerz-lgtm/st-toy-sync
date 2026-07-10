@@ -138,7 +138,6 @@ CMD 值（示例）：
 ```bash
 pkg update
 pkg install python
-pip install bleak
 termux-setup-storage
 ```
 
