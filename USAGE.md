@@ -51,6 +51,10 @@ https://github.com/bluesgwerz-lgtm/st-toy-sync
 问装给谁就选当前用户。装完扩展列表出现「🔗 Toy Sync」。
 （clone 失败基本是网络问题，需要能访问 GitHub 的环境。）
 
+> **更新扩展后必须刷新酒馆页面**（F5 / 下拉刷新）。无论是扩展管理里
+> 点更新、git pull 还是手动覆盖文件夹，刷新前浏览器都还在跑旧代码，
+> 典型症状是标记在聊天里肉眼可见、新功能不生效。
+
 ### 第二步：装 Intiface Central
 
 去 [intiface.com/central](https://intiface.com/central/) 下载对应平台版本：
@@ -206,6 +210,11 @@ https://github.com/bluesgwerz-lgtm/st-toy-sync
 - 提示词贴进去了吗？在生效的预设里吗？
 - 直接命令 AI「下条回复带上 ‹toy:wave›」——动了说明链路没问题，
   是 AI 没理解提示词；把 `<toy_sync>` 段挪到更靠前/权重更高的位置
+
+**标记在聊天里肉眼可见**
+- 扩展没启用，或「隐藏标记」开关关了
+- 刚更新/覆盖过扩展文件夹但没刷新酒馆页面——浏览器还在跑旧代码，
+  刷新（F5）即可
 
 **玩具动了但节奏不对 / 只有恒定震动**
 - 看扩展面板设备行的通道标注：设备只有 Vibrate 通道时，

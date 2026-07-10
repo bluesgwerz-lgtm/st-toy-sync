@@ -212,6 +212,7 @@ h2{color:#e94560;margin:10px 0}
 <p class="st" id="s1">未连接</p>
 <button class="btn" id="btn2" onclick="conn(2)">连接设备 2</button>
 <p class="st" id="s2">未连接</p>
+<p class="st" id="sWake">🔒 屏幕常亮：未启用（连接设备后自动开启）</p>
 <p class="tip">只有一个设备？连设备 1 即可，设备 2 跳过</p>
 </div>
 
@@ -235,16 +236,16 @@ h2{color:#e94560;margin:10px 0}
 <div class="sec">
 <h3 id="modeTitle">节奏模式</h3>
 <div class="mg">
-<button class="mb" onclick="playP('wave')">波浪</button>
-<button class="mb" onclick="playP('pulse')">心跳</button>
-<button class="mb" onclick="playP('tease')">挑逗</button>
-<button class="mb" onclick="playP('edge')">焦灼</button>
-<button class="mb" onclick="playP('deep')">深入</button>
-<button class="mb" onclick="playP('devour')">吞噬</button>
-<button class="mb" onclick="playP('chaos')">失控</button>
-<button class="mb" onclick="playP('storm')">风暴</button>
-<button class="mb" onclick="playP('gentle')">温存</button>
-<button class="mb" onclick="playP('climb')">攀升</button>
+<button class="mb" data-mode="wave" onclick="playP('wave')">波浪</button>
+<button class="mb" data-mode="pulse" onclick="playP('pulse')">心跳</button>
+<button class="mb" data-mode="tease" onclick="playP('tease')">挑逗</button>
+<button class="mb" data-mode="edge" onclick="playP('edge')">焦灼</button>
+<button class="mb" data-mode="deep" onclick="playP('deep')">深入</button>
+<button class="mb" data-mode="devour" onclick="playP('devour')">吞噬</button>
+<button class="mb" data-mode="chaos" onclick="playP('chaos')">失控</button>
+<button class="mb" data-mode="storm" onclick="playP('storm')">风暴</button>
+<button class="mb" data-mode="gentle" onclick="playP('gentle')">温存</button>
+<button class="mb" data-mode="climb" onclick="playP('climb')">攀升</button>
 </div>
 </div>
 <button class="stop-btn" onclick="doStop()">全部停止</button>
@@ -316,6 +317,7 @@ document.getElementById('s'+n).textContent='已连接 '+d.name;
 document.getElementById('btn'+n).className='btn ok';
 document.getElementById('d'+n+'name').textContent='设备 '+n+'：'+d.name;
 document.getElementById('ctl').style.display='block';
+acquireWake();
 }catch(e){document.getElementById('s'+n).textContent='失败: '+e.message}}
 
 async function snd(n,cmd){if(devs[n]&&devs[n].w)try{await devs[n].w.writeValueWithoutResponse(new Uint8Array(cmd))}catch(e){}}
@@ -337,7 +339,8 @@ document.querySelectorAll('.mb').forEach(b=>b.classList.remove('active'));
 document.getElementById('modeTitle').textContent='节奏模式'}
 
 function playP(name){
-doStop();if(event&&event.target)event.target.classList.add('active');
+doStop();
+document.querySelectorAll('.mb').forEach(b=>b.classList.toggle('active',b.dataset.mode===name));
 let s=0,M=Math;
 const P={
 wave:()=>{document.getElementById('modeTitle').textContent='波浪';pt=setInterval(()=>{let v=M.round((M.sin(s*0.04)+1)*110);let r=M.round((M.sin(s*0.03)+1)*80);s++;set(1,'vib',v);set(1,'rot',r);set(2,'vib',M.round(v*0.5))},SEND_INTERVAL)},
@@ -354,7 +357,32 @@ climb:()=>{document.getElementById('modeTitle').textContent='攀升';pt=setInter
 
 function ui(id,v){let e=document.getElementById(id);if(e)e.value=v;let t=document.getElementById(id+'T');if(t)t.textContent=v}
 function sl(ms){return new Promise(r=>setTimeout(r,ms))}
-setInterval(async()=>{try{let r=await fetch('/state');let j=await r.json();if(j.mode!==remoteMode){remoteMode=j.mode;if(j.mode==='stop')doStop();else playP(j.mode)}}catch(e){}},500);
+
+async function pollState(){try{let r=await fetch('/state');let j=await r.json();if(j.mode!==remoteMode){remoteMode=j.mode;if(j.mode==='stop')doStop();else playP(j.mode)}}catch(e){}}
+setInterval(pollState,500);
+
+// 屏幕常亮：防止息屏后蓝牙 keepalive 和轮询被系统掐断
+let wakeLock=null;
+async function acquireWake(){
+let el=document.getElementById('sWake');
+if(!('wakeLock' in navigator)){el.textContent='🔒 屏幕常亮：此浏览器不支持，请手动关闭自动息屏';return}
+try{
+wakeLock=await navigator.wakeLock.request('screen');
+el.textContent='🔒 屏幕常亮：已开启';
+wakeLock.addEventListener('release',()=>{wakeLock=null;el.textContent='🔒 屏幕常亮：已释放，回到本页自动恢复'});
+}catch(e){el.textContent='🔒 屏幕常亮：开启失败 '+e.message}}
+
+// 回前台恢复：后台期间定时器被浏览器限流，节奏和轮询都会冻结
+// 回来后立即向 server 对账，有节奏在跑就从头重启，防止半死不活的卡壳状态
+document.addEventListener('visibilitychange',async()=>{
+if(document.visibilityState!=='visible')return;
+if(!wakeLock&&(devs[1].w||devs[2].w))acquireWake();
+try{
+let r=await fetch('/state');let j=await r.json();
+remoteMode=j.mode;
+if(j.mode==='stop'){if(pt)doStop()}else playP(j.mode);
+}catch(e){}
+});
 </script>
 </body>
 </html>
@@ -377,7 +405,9 @@ setInterval(async()=>{try{let r=await fetch('/state');let j=await r.json();if(j.
 
 > **每次使用顺序**：玩具开机 → 关掉 nRF Connect 和官方 APP →
 > Termux 跑 `python server.py` → Chrome 开 `http://localhost:9090` →
-> 连接设备 → 回酒馆聊天。
+> 连接设备 → **分屏**回酒馆聊天，保持本页在前台可见。
+> Android 会限流后台标签页——本页纯后台时节奏和轮询都会冻结，
+> 正式玩必须分屏。页面连接设备后会自动申请屏幕常亮，防息屏掐断蓝牙。
 
 ---
 
@@ -386,6 +416,14 @@ setInterval(async()=>{try{let r=await fetch('/state');let j=await r.json();if(j.
 **搜不到设备**：确认官方 APP 和 nRF Connect 都已关闭，玩具指示灯在闪。
 蓝牙同一时刻只能被一个 App 占用。
 
+**手动拖滑条一切正常，但 AI 标记发了玩具不动**：九成是页面从
+`file:///sdcard/Download/toy.html` 直开的。`/state` 轮询走相对路径，
+file:// 下全部静默失败——手动全好使、远程全失灵，极难排查。
+AI 链路必须从 `http://localhost:9090` 打开页面（由 server.py 吐出）。
+
+**节奏跑着跑着冻住了**：页面进了后台被 Android 限流。回到本页会自动
+向服务器对账并重启节奏；正式玩请用分屏保持本页前台可见。
+
 **连上了但不动**：`CMD`/`STOP`/`INIT_SEQ` 还是占位示例没换成真字节。
 把反编译结果 + HTML 发给 AI 让它改。
 
@@ -393,8 +431,9 @@ setInterval(async()=>{try{let r=await fetch('/state');let j=await r.json();if(j.
 弹出列表后稍等，所有设备都会出现，手动选即可。
 
 **不想用服务器，只想手动玩**：Chrome 地址栏直接开
-`file:///sdcard/Download/toy.html`，手动拖滑条和点模式都能用，
-只是 AI 远程（`/set` 那条链路）需要服务器。
+`file:///sdcard/Download/toy.html`，手动拖滑条和点模式都能用。
+但 AI 远程链路（`/set` → `/state` 轮询）必须走 `http://localhost:9090`
+开的页面，file:// 下轮询会静默失败（见上面第二条）。
 
 **怎么判断我的玩具能不能 DIY**：nRF Connect 扫描能连上、
 且有自定义 Service UUID（不是标准的 `0x1800`/`0x1801`）就大概率可以。
