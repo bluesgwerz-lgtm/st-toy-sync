@@ -10,7 +10,9 @@
 
     const MODES = [
         'wave', 'pulse', 'tease', 'edge', 'deep',
-        'devour', 'chaos', 'storm', 'gentle', 'climb', 'stop',
+        'devour', 'chaos', 'storm', 'gentle', 'climb',
+        'breathe', 'heartbeat', 'gspot', 'alternate', 'denial', 'random',
+        'stop',
     ];
 
     // 兼容 ‹toy:xxx› 与 <toy:xxx>
@@ -161,6 +163,8 @@
     const TEASE_ARR = [.1, .1, .1, .1, .1, .1, .1, .12, .14, .16, .2, .27, .39, .63, .86, 1, 1, .86, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, .1, .1, .1, .1, .1, .1];
     const DEEP_T = [0, .14, .29, .43, .57, .71, .86, 1, 1, 1, 1, 1, .86, .71, .57, .43, .29, .14];
     const DEEP_R = [0, .16, .31, .47, .63, .78, .78, .63, .47, .31, .16, 0];
+    // 砰...砰砰...停——双跳后长歇，区别于 pulse 的连续双峰
+    const HEART_ARR = [0, 0, .71, 1, .78, .31, 0, 0, .63, .94, .71, .24, 0, 0, 0, 0, 0, 0, 0, 0];
 
     const PATTERNS = {
         wave: {
@@ -226,6 +230,60 @@
             tick: 100, f: s => {
                 const p = Math.min((s % 200) / 200, 1);
                 return { v: p, t: p, r: p * .78, s: p * .78 };
+            }
+        },
+        breathe: {
+            tick: 100, f: s => {
+                const ph = s % 80;
+                const p = ph < 40 ? ph / 40 : 1 - (ph - 40) / 40;
+                const v = .078 + p * .47;
+                return { v, t: 0, r: .059 + p * .314, s: v * .4 };
+            }
+        },
+        heartbeat: {
+            tick: 120, f: s => {
+                const v = HEART_ARR[s % HEART_ARR.length];
+                return { v, t: 0, r: v * .6, s: v * .4 };
+            }
+        },
+        gspot: {
+            // 旋转主导的定点研磨，刻意不用往复；无旋转马达的设备只感到低幅震动，属预期
+            tick: 100, f: s => ({
+                v: .118 + Math.sin(s * .02) * .078,
+                t: 0,
+                r: .549 + Math.sin(s * .025) * .235,
+                s: 0,
+            })
+        },
+        alternate: {
+            // 三角波交叉渐变：v/t/r 一侧与 s 一侧此消彼长
+            tick: 100, f: s => {
+                const ph = s % 100;
+                const a = ph < 50 ? ph / 50 : 1 - (ph - 50) / 50;
+                return { v: .118 + a * .86, t: a * .86, r: a * .71, s: (1 - a) * .78 };
+            }
+        },
+        denial: {
+            tick: 100, f: s => {
+                const c = s % 80;
+                if (c < 60) { const p = c / 60; return { v: p * p, t: p, r: p * .78, s: p * .71 }; }
+                if (c < 65) return { v: 1, t: 1, r: .78, s: .78 };
+                return { v: 0, t: 0, r: 0, s: 0 };
+            }
+        },
+        random: {
+            // 随机值保持随机时长（0.5~2.5s），区别于 chaos 的每 0.3s 高频乱跳
+            tick: 100, f: function (s) {
+                if (s === 0 || !this._r || s >= this._r.until) {
+                    this._r = {
+                        v: .118 + Math.random() * .86,
+                        t: Math.random(),
+                        r: Math.random() * .71,
+                        s: Math.random() * .78,
+                        until: s + 5 + Math.round(Math.random() * 20),
+                    };
+                }
+                return this._r;
             }
         },
     };

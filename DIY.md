@@ -236,16 +236,22 @@ h2{color:#e94560;margin:10px 0}
 <div class="sec">
 <h3 id="modeTitle">节奏模式</h3>
 <div class="mg">
+<button class="mb" data-mode="gentle" onclick="playP('gentle')">温存</button>
 <button class="mb" data-mode="wave" onclick="playP('wave')">波浪</button>
-<button class="mb" data-mode="pulse" onclick="playP('pulse')">心跳</button>
+<button class="mb" data-mode="breathe" onclick="playP('breathe')">呼吸</button>
+<button class="mb" data-mode="heartbeat" onclick="playP('heartbeat')">心跳</button>
 <button class="mb" data-mode="tease" onclick="playP('tease')">挑逗</button>
-<button class="mb" data-mode="edge" onclick="playP('edge')">焦灼</button>
+<button class="mb" data-mode="gspot" onclick="playP('gspot')">G点</button>
 <button class="mb" data-mode="deep" onclick="playP('deep')">深入</button>
 <button class="mb" data-mode="devour" onclick="playP('devour')">吞噬</button>
+<button class="mb" data-mode="alternate" onclick="playP('alternate')">交替</button>
+<button class="mb" data-mode="climb" onclick="playP('climb')">攀升</button>
+<button class="mb" data-mode="edge" onclick="playP('edge')">焦灼</button>
+<button class="mb" data-mode="denial" onclick="playP('denial')">禁止</button>
+<button class="mb" data-mode="random" onclick="playP('random')">随机</button>
 <button class="mb" data-mode="chaos" onclick="playP('chaos')">失控</button>
 <button class="mb" data-mode="storm" onclick="playP('storm')">风暴</button>
-<button class="mb" data-mode="gentle" onclick="playP('gentle')">温存</button>
-<button class="mb" data-mode="climb" onclick="playP('climb')">攀升</button>
+<button class="mb" data-mode="pulse" onclick="playP('pulse')">脉冲</button>
 </div>
 </div>
 <button class="stop-btn" onclick="doStop()">全部停止</button>
@@ -344,7 +350,7 @@ document.querySelectorAll('.mb').forEach(b=>b.classList.toggle('active',b.datase
 let s=0,M=Math;
 const P={
 wave:()=>{document.getElementById('modeTitle').textContent='波浪';pt=setInterval(()=>{let v=M.round((M.sin(s*0.04)+1)*110);let r=M.round((M.sin(s*0.03)+1)*80);s++;set(1,'vib',v);set(1,'rot',r);set(2,'vib',M.round(v*0.5))},SEND_INTERVAL)},
-pulse:()=>{document.getElementById('modeTitle').textContent='心跳';let a=[0,0,0,0,80,150,230,255,255,230,150,80,0,0,0,0,0,80,150,230,255,255,230,150,80,0,0,0,0,0,0,0];pt=setInterval(()=>{let v=a[s%a.length];s++;set(1,'vib',v);set(2,'suc',M.round(v*0.5))},SEND_INTERVAL)},
+pulse:()=>{document.getElementById('modeTitle').textContent='脉冲';let a=[0,0,0,0,80,150,230,255,255,230,150,80,0,0,0,0,0,80,150,230,255,255,230,150,80,0,0,0,0,0,0,0];pt=setInterval(()=>{let v=a[s%a.length];s++;set(1,'vib',v);set(2,'suc',M.round(v*0.5))},SEND_INTERVAL)},
 tease:()=>{document.getElementById('modeTitle').textContent='挑逗';let a=[25,25,25,25,25,25,25,30,35,40,50,70,100,160,220,255,255,220,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,25,25,25,25,25,25];pt=setInterval(()=>{let v=a[s%a.length];s++;set(1,'vib',v);set(2,'vib',M.round(v*0.6))},130)},
 edge:()=>{document.getElementById('modeTitle').textContent='焦灼';pt=setInterval(()=>{let c=s%100;let v=0,t=0,sc=0;if(c<50){v=M.round(c*5);t=M.min(M.round(c/7),7);sc=M.round(c*3)}else if(c<55){v=255;t=7;sc=150}else{v=0;t=0;sc=0}s++;set(1,'vib',v);set(1,'thr',t);set(2,'suc',sc)},SEND_INTERVAL)},
 deep:()=>{document.getElementById('modeTitle').textContent='深入';let tv=[0,1,2,3,4,5,6,7,7,7,7,7,6,5,4,3,2,1];let rv=[0,40,80,120,160,200,200,160,120,80,40,0];pt=setInterval(()=>{let t=tv[s%tv.length];let r=rv[s%rv.length];s++;set(1,'thr',t);set(1,'rot',r);set(1,'vib',M.round(t*30));set(2,'suc',M.round(r*0.4))},180)},
@@ -352,7 +358,13 @@ devour:()=>{document.getElementById('modeTitle').textContent='吞噬';pt=setInte
 chaos:()=>{document.getElementById('modeTitle').textContent='失控';pt=setInterval(()=>{if(s%3===0){set(1,'vib',M.round(M.random()*255));set(1,'thr',M.round(M.random()*7));set(1,'rot',M.round(M.random()*220));set(2,'suc',M.round(M.random()*220));set(2,'vib',M.round(M.random()*220))}s++},SEND_INTERVAL)},
 storm:()=>{document.getElementById('modeTitle').textContent='风暴';set(1,'vib',255);set(1,'thr',7);set(1,'rot',220);set(2,'suc',220);set(2,'vib',255)},
 gentle:()=>{document.getElementById('modeTitle').textContent='温存';pt=setInterval(()=>{let v=M.round(40+M.sin(s*0.02)*20);let r=M.round(30+M.sin(s*0.015)*15);let sc=M.round(35+M.sin(s*0.025)*20);s++;set(1,'vib',v);set(1,'rot',r);set(2,'suc',sc)},SEND_INTERVAL)},
-climb:()=>{document.getElementById('modeTitle').textContent='攀升';pt=setInterval(()=>{let p=M.min(s/200,1);s++;set(1,'vib',M.round(p*255));set(1,'thr',M.min(M.round(p*7),7));set(1,'rot',M.round(p*200));set(2,'suc',M.round(p*200));set(2,'vib',M.round(p*200));if(p>=1)s=0},SEND_INTERVAL)}
+climb:()=>{document.getElementById('modeTitle').textContent='攀升';pt=setInterval(()=>{let p=M.min(s/200,1);s++;set(1,'vib',M.round(p*255));set(1,'thr',M.min(M.round(p*7),7));set(1,'rot',M.round(p*200));set(2,'suc',M.round(p*200));set(2,'vib',M.round(p*200));if(p>=1)s=0},SEND_INTERVAL)},
+breathe:()=>{document.getElementById('modeTitle').textContent='呼吸';pt=setInterval(()=>{let phase=s%80;let v,r;if(phase<40){v=M.round(20+(phase/40)*120);r=M.round(15+(phase/40)*80)}else{let d=(phase-40)/40;v=M.round(140-d*120);r=M.round(95-d*80)}s++;set(1,'vib',v);set(1,'rot',r);set(2,'suc',M.round(v*0.4))},SEND_INTERVAL)},
+heartbeat:()=>{document.getElementById('modeTitle').textContent='心跳';let a=[0,0,180,255,200,80,0,0,160,240,180,60,0,0,0,0,0,0,0,0];pt=setInterval(()=>{let v=a[s%a.length];s++;set(1,'vib',v);set(1,'rot',M.round(v*0.6));set(2,'vib',M.round(v*0.4))},120)},
+gspot:()=>{document.getElementById('modeTitle').textContent='G点';pt=setInterval(()=>{let r=M.round(140+M.sin(s*0.025)*60);let v=M.round(30+M.sin(s*0.02)*20);s++;set(1,'rot',r);set(1,'vib',v);set(1,'thr',0)},SEND_INTERVAL)},
+alternate:()=>{document.getElementById('modeTitle').textContent='交替';pt=setInterval(()=>{let phase=s%100;let a,b;if(phase<50){a=phase/50;b=1-a}else{b=(phase-50)/50;a=1-b}s++;set(1,'vib',M.round(a*220+30));set(1,'rot',M.round(a*180));set(1,'thr',M.min(M.round(a*6),7));set(2,'suc',M.round(b*200));set(2,'vib',M.round(b*180))},SEND_INTERVAL)},
+denial:()=>{document.getElementById('modeTitle').textContent='禁止';pt=setInterval(()=>{let c=s%80;let v=0,t=0,r=0,sc=0;if(c<60){let p=c/60;v=M.round(p*p*255);t=M.min(M.round(p*7),7);r=M.round(p*200);sc=M.round(p*180)}else if(c<65){v=255;t=7;r=200;sc=200}s++;set(1,'vib',v);set(1,'thr',t);set(1,'rot',r);set(2,'suc',sc)},SEND_INTERVAL)},
+random:()=>{document.getElementById('modeTitle').textContent='随机';let nc=0,cv=0,cr=0,cs=0,ct=0;pt=setInterval(()=>{if(s>=nc){cv=M.round(M.random()*220+30);cr=M.round(M.random()*180);cs=M.round(M.random()*200);ct=M.round(M.random()*7);nc=s+M.round(M.random()*20+5)}s++;set(1,'vib',cv);set(1,'rot',cr);set(1,'thr',ct);set(2,'suc',cs)},SEND_INTERVAL)}
 };if(P[name])P[name]()}
 
 function ui(id,v){let e=document.getElementById(id);if(e)e.value=v;let t=document.getElementById(id+'T');if(t)t.textContent=v}
@@ -400,7 +412,8 @@ if(j.mode==='stop'){if(pt)doStop()}else playP(j.mode);
 4. AI 回复里出现 `‹toy:wave›` 之类标记时，扩展自动 `GET /set?mode=wave`，
    `toy.html` 轮询到模式变化就切换节奏，玩具动起来
 
-标记词表（`wave/pulse/tease/edge/deep/devour/chaos/storm/gentle/climb/stop`）
+标记词表（`wave/pulse/tease/edge/deep/devour/chaos/storm/gentle/climb/`
+`breathe/heartbeat/gspot/alternate/denial/random/stop`）
 和 Intiface 后端完全一致，AI 提示词不用改。
 
 > **每次使用顺序**：玩具开机 → 关掉 nRF Connect 和官方 APP →
