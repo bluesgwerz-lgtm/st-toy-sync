@@ -256,7 +256,9 @@ Intiface **加省电白名单、允许后台运行和自启动**，否则切去�
 
 **状态「已连接」但设备列表空**
 - 先在 Intiface Central 里扫描并连接玩具，扩展这边会自动刷新
-- 玩具没被 Intiface 认出来 → 查 [iostindex.com](https://iostindex.com/) 确认支持；
+- 玩具没被 Intiface 认出来 → **先在电脑上用最新版 Intiface Central 桌面版试一次**
+  （手机版内置设备清单更新慢，不少玩具「手机连不上、电脑能连」）；电脑版也不认，
+  再查 [iostindex.com](https://iostindex.com/) 确认支持；
   确实不在列表？走 [DIY.md](DIY.md)，反编译官方 APP + HTTP 后端，任意 BLE 玩具都能接
 
 **AI 不插标记**
