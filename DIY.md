@@ -20,13 +20,15 @@ Intiface 不认识你的玩具？这篇教你把**任意 BLE 蓝牙玩具**接�
 往往比映射方案（常常只剩震动）体验更完整。
 
 > **iOS 用户注意**：这条路和 Intiface 一样，在 iPhone/iPad 上单机不可用——
-> iOS 浏览器不支持 Web Bluetooth。需要一台安卓手机或电脑来跑蓝牙那一端。
+> iOS 浏览器不支持 Web Bluetooth。但蓝牙那一端可以搬到一台带蓝牙的电脑上跑，
+> iPhone 只当酒馆的屏幕，见[电脑版变体](#电脑版变体ios-用户--没有安卓手机)。
 
 ---
 
 ## 你需要准备的
 
-- 一部**安卓**手机（跑蓝牙 + 本地服务器）
+- 一部**安卓**手机（跑蓝牙 + 本地服务器）——
+  没有安卓 / iPhone 用户改用带蓝牙的电脑，见[电脑版变体](#电脑版变体ios-用户--没有安卓手机)
 - 你的 BLE 蓝牙玩具（能被官方 APP 控制的那种）
 - 你玩具品牌的官方 APP 安装包（`.apk`）
 - 三个 App：**Termux**（[GitHub Releases](https://github.com/termux/termux-app/releases)）、
@@ -402,6 +404,40 @@ if(j.mode==='stop'){if(pt)doStop()}else playP(j.mode);
 
 ---
 
+## 电脑版变体（iOS 用户 / 没有安卓手机）
+
+蓝牙那一端不一定是安卓手机——一台**带蓝牙的电脑**（Windows/macOS/Linux）
+同样能跑。iPhone/iPad 用户只有这条路，没有安卓手机的电脑用户也适用。
+第一步反编译不变（电脑上直接用 jadx-gui 反而更顺手），其余各步替换如下：
+
+- **第二步验证**：nRF Connect 没有电脑版。Windows 用微软商店的
+  **Bluetooth LE Explorer**，macOS 用 **LightBlue**；嫌麻烦也可以跳过验证，
+  直接到第五步用 toy.html 连接试
+- **第三步环境**：不用 Termux，装 [Python](https://www.python.org/downloads/)
+  即可（server.py 只用标准库，不需要 pip 装任何东西）
+- **第四步服务器**：server.py 原样可用，只改一处——把
+  `/sdcard/Download/toy.html` 改成 `toy.html`（和 server.py 放同一个文件夹），
+  然后命令行 `python server.py` 启动
+- **第五步页面**：toy.html 放在 server.py 旁边即可，用**桌面版 Chrome / Edge**
+  打开 `http://localhost:9090` 连接设备（桌面 Chrome/Edge 支持 Web Bluetooth；
+  Safari 和 Firefox 不支持，别用）
+
+接进酒馆（第六步）时有三个跨设备条件，和 [USAGE.md](USAGE.md) 7.5 节
+「iPhone + 电脑组合」路线完全一致：
+
+1. 手机和电脑在**同一局域网**，扩展的服务器地址填
+   `http://电脑局域网IP:9090`（不是 localhost）。Windows 防火墙首次会弹窗
+   询问，选允许；没弹窗又连不上就手动放行 9090 端口
+2. 玩具要在**电脑**的蓝牙范围内（约 10 米），手机只是块屏幕
+3. 酒馆必须走 **HTTP** 访问——HTTPS 云酒馆会以混合内容为由拦截发往局域网
+   `http://` 地址的请求。实际上这意味着：在电脑上自建酒馆，手机浏览器
+   用 `http://电脑IP:酒馆端口` 打开
+
+电脑上不需要分屏：toy.html 单独开一个**可见窗口**摆着、别最小化即可
+（最小化或纯后台标签同样会被浏览器限流，节奏会冻结），手机上正常聊。
+
+---
+
 ## 第六步：接进 Toy Sync
 
 服务器和页面就绪后，回到酒馆扩展设置：
@@ -421,6 +457,8 @@ if(j.mode==='stop'){if(pt)doStop()}else playP(j.mode);
 > 连接设备 → **分屏**回酒馆聊天，保持本页在前台可见。
 > Android 会限流后台标签页——本页纯后台时节奏和轮询都会冻结，
 > 正式玩必须分屏。页面连接设备后会自动申请屏幕常亮，防息屏掐断蓝牙。
+> 电脑版变体顺序相同：Termux 换成电脑命令行，分屏换成
+> 「toy.html 窗口可见、别最小化」，手机酒馆正常聊。
 
 ---
 
@@ -436,6 +474,7 @@ AI 链路必须从 `http://localhost:9090` 打开页面（由 server.py 吐出�
 
 **节奏跑着跑着冻住了**：页面进了后台被 Android 限流。回到本页会自动
 向服务器对账并重启节奏；正式玩请用分屏保持本页前台可见。
+电脑版变体同理：toy.html 窗口被最小化就会冻结，保持窗口可见即可。
 
 **连上了但不动**：`CMD`/`STOP`/`INIT_SEQ` 还是占位示例没换成真字节。
 把反编译结果 + HTML 发给 AI 让它改。

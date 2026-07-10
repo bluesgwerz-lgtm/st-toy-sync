@@ -197,7 +197,7 @@ https://github.com/bluesgwerz-lgtm/st-toy-sync
 | Android 手机 | ✅ | Intiface 有安卓版，酒馆浏览器和它同机即可 |
 | Windows / macOS / Linux 电脑 | ✅ | 需要电脑有蓝牙（或 USB 蓝牙适配器） |
 | iPhone / iPad | ❌ 单机不行 | Intiface 无 iOS 版（App Store 政策），且 iOS 浏览器不支持 Web Bluetooth |
-| iPhone + 电脑组合 | ⚠️ 有条件 | Intiface 跑电脑上并监听所有网卡，扩展地址填电脑局域网 IP。**仅限 HTTP 访问的酒馆**——HTTPS 云酒馆会以混合内容为由拦截对局域网 IP 的 ws:// 连接（localhost 有豁免，局域网 IP 没有） |
+| iPhone + 电脑组合 | ⚠️ 有条件 | Intiface 跑电脑上并监听所有网卡，扩展地址填电脑局域网 IP。**仅限 HTTP 访问的酒馆**——HTTPS 云酒馆会以混合内容为由拦截对局域网 IP 的 ws:// 连接（localhost 有豁免，局域网 IP 没有）。玩具不被 Intiface 支持也走得通：DIY 路线的蓝牙端同样可以搬到电脑上，见 [DIY.md](DIY.md) 的「电脑版变体」 |
 
 另外注意：「Install extension」是**酒馆服务器**执行 git clone。本地/Termux
 部署的酒馆需要该设备能访问 GitHub（国内环境把代理开成全局/TUN 模式再装）；
