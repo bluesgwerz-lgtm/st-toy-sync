@@ -71,6 +71,11 @@ https://github.com/bluesgwerz-lgtm/st-toy-sync
 2. 进 Devices 页 → 扫描 → 玩具开机 → 出现后点连接
 3. 保持 App 在后台运行
 
+安卓额外注意两件事：首次扫描会请求**「附近的设备」/位置权限**，
+不给就搜不到玩具；国产 ROM（MIUI / EMUI / ColorOS 等）请在系统设置里给
+Intiface **加省电白名单、允许后台运行和自启动**，否则切去酒馆后 App
+可能被系统杀掉，症状是玩着玩着断连。
+
 ### 第三步：教 AI 插标记
 
 把 README 里的 `<toy_sync>` 提示词段落复制进你的预设/系统提示/角色卡，
@@ -268,6 +273,11 @@ https://github.com/bluesgwerz-lgtm/st-toy-sync
 - 看扩展面板设备行的通道标注：设备只有 Vibrate 通道时，
   deep/devour 这类往复、吮吸主导的模式会折算成震动曲线，体感变化小是正常的
 
+**玩着玩着突然断连（安卓）**
+- 后台的 Intiface Central 被系统省电机制杀了。给它加省电白名单、
+  允许后台运行和自启动；开玩前瞄一眼通知栏，Intiface 的服务器常驻通知
+  还在就没被杀
+
 **切后台回来没声了**
 - 点一下扩展面板「当前模式」旁边的任意操作或重发一条消息即可；
   扩展在回前台时会自动重启节奏，偶尔浏览器杀得太狠需要重连
@@ -283,6 +293,7 @@ https://github.com/bluesgwerz-lgtm/st-toy-sync
 
 - 收到标记时：`GET 你的地址/set?mode=模式名`（no-cors，服务器无需配 CORS）
 - 「测试连接」按钮会访问：`GET 你的地址/state`，期望返回 `{"mode":"xxx"}`
+  （多余字段会被忽略——比如 DIY.md 示例服务器还会带 `seq`）
 
 设备驱动、节奏引擎全部自己实现，模式名语义自定。地址默认
 `http://localhost:9090`。

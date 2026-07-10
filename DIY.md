@@ -141,7 +141,17 @@ cat > server.py << 'PYEOF'
 from http.server import HTTPServer, BaseHTTPRequestHandler
 from urllib.parse import urlparse, parse_qs
 import json
-state = {'mode':'stop'}
+
+MODES = {
+    'wave','pulse','tease','edge','deep','devour','chaos','storm',
+    'gentle','climb','breathe','heartbeat','gspot','alternate',
+    'denial','random','stop',
+}
+# seq：每接受一条指令+1，toy.html 靠 seq 变化识别新指令。
+# 只对比 mode 认不出"同值重发"——手点本地节奏时 server 一直是 stop，
+# 急停再发 stop 会被页面当成"没变化"忽略，急停就失效了
+state = {'mode':'stop','seq':0}
+
 class H(BaseHTTPRequestHandler):
     def do_GET(self):
         p=urlparse(self.path);q=parse_qs(p.query)
@@ -149,22 +159,33 @@ class H(BaseHTTPRequestHandler):
             self.send_response(200);self.send_header('Content-Type','text/html');self.end_headers()
             self.wfile.write(open('/sdcard/Download/toy.html','rb').read())
         elif p.path=='/state':
-            self.send_response(200);self.send_header('Content-Type','application/json');self.end_headers()
-            self.wfile.write(json.dumps(state).encode())
+            self._json()
         elif p.path=='/set':
-            if 'mode' in q:state['mode']=q['mode'][0]
-            self.send_response(200);self.send_header('Content-Type','application/json');self.end_headers()
-            self.wfile.write(json.dumps(state).encode())
+            m=q.get('mode',[None])[0]
+            if m in MODES:state['mode']=m;state['seq']+=1
+            # 未知模式忽略，保持当前状态
+            self._json()
+        elif p.path=='/stop':
+            state['mode']='stop';state['seq']+=1  # 急停备用入口：浏览器直接访问 /stop 即停
+            self._json()
         else:
             self.send_response(404);self.end_headers()
+    def _json(self):
+        self.send_response(200)
+        self.send_header('Content-Type','application/json')
+        # CORS 头让扩展的「测试连接」能读到响应内容
+        self.send_header('Access-Control-Allow-Origin','*')
+        self.end_headers()
+        self.wfile.write(json.dumps(state).encode())
     def log_message(self,*a):pass
 print("控制服务器启动 -> http://localhost:9090")
 HTTPServer(('',9090),H).serve_forever()
 PYEOF
 ```
 
-这个服务器只做一件事：记住"当前模式"，并把控制页面吐给浏览器。
-真正驱动蓝牙的是下一步的 HTML。
+这个服务器只做两件事：记住「当前模式 + 指令序号 seq」（页面靠 seq
+识别"急停重发 stop"这类同值指令，只看 mode 会漏掉），并把控制页面
+吐给浏览器。真正驱动蓝牙的是下一步的 HTML。
 
 ---
 
@@ -215,6 +236,7 @@ h2{color:#e94560;margin:10px 0}
 <button class="btn" id="btn2" onclick="conn(2)">连接设备 2</button>
 <p class="st" id="s2">未连接</p>
 <p class="st" id="sWake">🔒 屏幕常亮：未启用（连接设备后自动开启）</p>
+<p class="st"><span id="sKa">🎧 后台保活：未启用（连接设备后自动开启）</span> <button onclick="kaToggle()" style="background:#0f3460;color:#fff;border:none;padding:4px 10px;border-radius:10px;font-size:12px;margin-left:6px;cursor:pointer">开/关</button></p>
 <p class="tip">只有一个设备？连设备 1 即可，设备 2 跳过</p>
 </div>
 
@@ -304,7 +326,42 @@ const SEND_INTERVAL = 100;
 
 /* ======================================== */
 
-let devs=[null,{w:null},{w:null}],timers=[null,{},{}],pt=null,remoteMode='stop';
+let devs=[null,{w:null},{w:null}],timers=[null,{},{}],pt=null,remoteMode='stop',remoteSeq=null;
+
+// —— 后台保活①：Worker 出拍子。页面级 setInterval 切后台会被浏览器限流冻结，
+// Worker 线程的定时器不受页面限流，由它 postMessage 叫主线程干活。创建失败自动回退原生 setInterval
+const bgTimer=(()=>{
+let w=null,cbs={},nid=0;
+try{
+w=new Worker(URL.createObjectURL(new Blob(['let t={};onmessage=e=>{let d=e.data;if(d.c=="set")t[d.id]=setInterval(()=>postMessage(d.id),d.ms);else{clearInterval(t[d.id]);delete t[d.id]}}'],{type:'text/javascript'})));
+w.onmessage=e=>{let cb=cbs[e.data];if(cb)cb()};
+}catch(e){}
+return{
+set(fn,ms){if(!w)return setInterval(fn,ms);let id='w'+(++nid);cbs[id]=fn;w.postMessage({c:'set',id:id,ms:ms});return id},
+clear(h){if(h==null)return;if(typeof h!=='string')return clearInterval(h);delete cbs[h];w.postMessage({c:'clear',id:h})}
+};
+})();
+
+// —— 后台保活②：30Hz 静音音频。页面"在播放音频"时浏览器豁免后台限流和冻结；
+// 30Hz 低于手机扬声器可发声下限，实际无声。AudioContext 必须用户手势触发，挂在连接按钮上
+let kaCtx=null,kaOsc=null;
+function kaStart(){
+if(kaOsc)return;
+let el=document.getElementById('sKa');
+try{
+kaCtx=kaCtx||new (window.AudioContext||window.webkitAudioContext)();
+kaCtx.resume();
+let o=kaCtx.createOscillator(),g=kaCtx.createGain();
+o.frequency.value=30;g.gain.value=0.02;
+o.connect(g);g.connect(kaCtx.destination);o.start();
+kaOsc=o;
+el.textContent='🎧 后台保活：已开启（可切后台，节奏不冻结）';
+}catch(e){el.textContent='🎧 后台保活：开启失败 '+e.message}}
+function kaStop(){
+if(kaOsc){try{kaOsc.stop()}catch(e){}kaOsc=null}
+if(kaCtx)kaCtx.suspend();
+document.getElementById('sKa').textContent='🎧 后台保活：已关闭（切后台会冻结，需分屏保持前台）'}
+function kaToggle(){kaOsc?kaStop():kaStart()}
 
 async function conn(n){
 try{
@@ -326,11 +383,12 @@ document.getElementById('btn'+n).className='btn ok';
 document.getElementById('d'+n+'name').textContent='设备 '+n+'：'+d.name;
 document.getElementById('ctl').style.display='block';
 acquireWake();
+kaStart();
 }catch(e){document.getElementById('s'+n).textContent='失败: '+e.message}}
 
 async function snd(n,cmd){if(devs[n]&&devs[n].w)try{await devs[n].w.writeValueWithoutResponse(new Uint8Array(cmd))}catch(e){}}
-function loop(n,key,cmd){stopK(n,key);snd(n,cmd);let t=setInterval(()=>snd(n,cmd),SEND_INTERVAL);timers[n][key]=t}
-function stopK(n,key){if(timers[n][key]){clearInterval(timers[n][key]);timers[n][key]=null}}
+function loop(n,key,cmd){stopK(n,key);snd(n,cmd);let t=bgTimer.set(()=>snd(n,cmd),SEND_INTERVAL);timers[n][key]=t}
+function stopK(n,key){if(timers[n][key]){bgTimer.clear(timers[n][key]);timers[n][key]=null}}
 
 function set(n,type,v){
 v=parseInt(v);ui('d'+n+type,v);
@@ -338,8 +396,8 @@ if(v>0){let c=[...CMD[type],v,TAIL];loop(n,type,c)}
 else{stopK(n,type);snd(n,STOP[type])}}
 
 function doStop(){
-if(pt){clearInterval(pt);pt=null}
-for(let n=1;n<=2;n++){Object.keys(timers[n]).forEach(k=>{if(timers[n][k])clearInterval(timers[n][k]);timers[n][k]=null});
+if(pt){bgTimer.clear(pt);pt=null}
+for(let n=1;n<=2;n++){Object.keys(timers[n]).forEach(k=>{if(timers[n][k])bgTimer.clear(timers[n][k]);timers[n][k]=null});
 Object.keys(STOP).forEach(k=>snd(n,STOP[k]))}
 ['d1vib','d1thr','d1rot','d1suc','d2vib','d2thr','d2rot','d2suc'].forEach(id=>{let e=document.getElementById(id);if(e)e.value=0});
 ['d1vibT','d1thrT','d1rotT','d1sucT','d2vibT','d2thrT','d2rotT','d2sucT'].forEach(id=>{let e=document.getElementById(id);if(e)e.textContent='0'});
@@ -351,29 +409,35 @@ doStop();
 document.querySelectorAll('.mb').forEach(b=>b.classList.toggle('active',b.dataset.mode===name));
 let s=0,M=Math;
 const P={
-wave:()=>{document.getElementById('modeTitle').textContent='波浪';pt=setInterval(()=>{let v=M.round((M.sin(s*0.04)+1)*110);let r=M.round((M.sin(s*0.03)+1)*80);s++;set(1,'vib',v);set(1,'rot',r);set(2,'vib',M.round(v*0.5))},SEND_INTERVAL)},
-pulse:()=>{document.getElementById('modeTitle').textContent='脉冲';let a=[0,0,0,0,80,150,230,255,255,230,150,80,0,0,0,0,0,80,150,230,255,255,230,150,80,0,0,0,0,0,0,0];pt=setInterval(()=>{let v=a[s%a.length];s++;set(1,'vib',v);set(2,'suc',M.round(v*0.5))},SEND_INTERVAL)},
-tease:()=>{document.getElementById('modeTitle').textContent='挑逗';let a=[25,25,25,25,25,25,25,30,35,40,50,70,100,160,220,255,255,220,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,25,25,25,25,25,25];pt=setInterval(()=>{let v=a[s%a.length];s++;set(1,'vib',v);set(2,'vib',M.round(v*0.6))},130)},
-edge:()=>{document.getElementById('modeTitle').textContent='焦灼';pt=setInterval(()=>{let c=s%100;let v=0,t=0,sc=0;if(c<50){v=M.round(c*5);t=M.min(M.round(c/7),7);sc=M.round(c*3)}else if(c<55){v=255;t=7;sc=150}else{v=0;t=0;sc=0}s++;set(1,'vib',v);set(1,'thr',t);set(2,'suc',sc)},SEND_INTERVAL)},
-deep:()=>{document.getElementById('modeTitle').textContent='深入';let tv=[0,1,2,3,4,5,6,7,7,7,7,7,6,5,4,3,2,1];let rv=[0,40,80,120,160,200,200,160,120,80,40,0];pt=setInterval(()=>{let t=tv[s%tv.length];let r=rv[s%rv.length];s++;set(1,'thr',t);set(1,'rot',r);set(1,'vib',M.round(t*30));set(2,'suc',M.round(r*0.4))},180)},
-devour:()=>{document.getElementById('modeTitle').textContent='吞噬';pt=setInterval(()=>{let sc=M.round((M.sin(s*0.06)+1)*120);let v=M.round((M.cos(s*0.08)+1)*90);s++;set(2,'suc',sc);set(2,'vib',v);set(1,'vib',M.round(sc*0.7))},SEND_INTERVAL)},
-chaos:()=>{document.getElementById('modeTitle').textContent='失控';pt=setInterval(()=>{if(s%3===0){set(1,'vib',M.round(M.random()*255));set(1,'thr',M.round(M.random()*7));set(1,'rot',M.round(M.random()*220));set(2,'suc',M.round(M.random()*220));set(2,'vib',M.round(M.random()*220))}s++},SEND_INTERVAL)},
+wave:()=>{document.getElementById('modeTitle').textContent='波浪';pt=bgTimer.set(()=>{let v=M.round((M.sin(s*0.04)+1)*110);let r=M.round((M.sin(s*0.03)+1)*80);s++;set(1,'vib',v);set(1,'rot',r);set(2,'vib',M.round(v*0.5))},SEND_INTERVAL)},
+pulse:()=>{document.getElementById('modeTitle').textContent='脉冲';let a=[0,0,0,0,80,150,230,255,255,230,150,80,0,0,0,0,0,80,150,230,255,255,230,150,80,0,0,0,0,0,0,0];pt=bgTimer.set(()=>{let v=a[s%a.length];s++;set(1,'vib',v);set(2,'suc',M.round(v*0.5))},SEND_INTERVAL)},
+tease:()=>{document.getElementById('modeTitle').textContent='挑逗';let a=[25,25,25,25,25,25,25,30,35,40,50,70,100,160,220,255,255,220,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,25,25,25,25,25,25];pt=bgTimer.set(()=>{let v=a[s%a.length];s++;set(1,'vib',v);set(2,'vib',M.round(v*0.6))},130)},
+edge:()=>{document.getElementById('modeTitle').textContent='焦灼';pt=bgTimer.set(()=>{let c=s%100;let v=0,t=0,sc=0;if(c<50){v=M.round(c*5);t=M.min(M.round(c/7),7);sc=M.round(c*3)}else if(c<55){v=255;t=7;sc=150}else{v=0;t=0;sc=0}s++;set(1,'vib',v);set(1,'thr',t);set(2,'suc',sc)},SEND_INTERVAL)},
+deep:()=>{document.getElementById('modeTitle').textContent='深入';let tv=[0,1,2,3,4,5,6,7,7,7,7,7,6,5,4,3,2,1];let rv=[0,40,80,120,160,200,200,160,120,80,40,0];pt=bgTimer.set(()=>{let t=tv[s%tv.length];let r=rv[s%rv.length];s++;set(1,'thr',t);set(1,'rot',r);set(1,'vib',M.round(t*30));set(2,'suc',M.round(r*0.4))},180)},
+devour:()=>{document.getElementById('modeTitle').textContent='吞噬';pt=bgTimer.set(()=>{let sc=M.round((M.sin(s*0.06)+1)*120);let v=M.round((M.cos(s*0.08)+1)*90);s++;set(2,'suc',sc);set(2,'vib',v);set(1,'vib',M.round(sc*0.7))},SEND_INTERVAL)},
+chaos:()=>{document.getElementById('modeTitle').textContent='失控';pt=bgTimer.set(()=>{if(s%3===0){set(1,'vib',M.round(M.random()*255));set(1,'thr',M.round(M.random()*7));set(1,'rot',M.round(M.random()*220));set(2,'suc',M.round(M.random()*220));set(2,'vib',M.round(M.random()*220))}s++},SEND_INTERVAL)},
 storm:()=>{document.getElementById('modeTitle').textContent='风暴';set(1,'vib',255);set(1,'thr',7);set(1,'rot',220);set(2,'suc',220);set(2,'vib',255)},
-gentle:()=>{document.getElementById('modeTitle').textContent='温存';pt=setInterval(()=>{let v=M.round(40+M.sin(s*0.02)*20);let r=M.round(30+M.sin(s*0.015)*15);let sc=M.round(35+M.sin(s*0.025)*20);s++;set(1,'vib',v);set(1,'rot',r);set(2,'suc',sc)},SEND_INTERVAL)},
-climb:()=>{document.getElementById('modeTitle').textContent='攀升';pt=setInterval(()=>{let p=M.min(s/200,1);s++;set(1,'vib',M.round(p*255));set(1,'thr',M.min(M.round(p*7),7));set(1,'rot',M.round(p*200));set(2,'suc',M.round(p*200));set(2,'vib',M.round(p*200));if(p>=1)s=0},SEND_INTERVAL)},
-breathe:()=>{document.getElementById('modeTitle').textContent='呼吸';pt=setInterval(()=>{let phase=s%80;let v,r;if(phase<40){v=M.round(20+(phase/40)*120);r=M.round(15+(phase/40)*80)}else{let d=(phase-40)/40;v=M.round(140-d*120);r=M.round(95-d*80)}s++;set(1,'vib',v);set(1,'rot',r);set(2,'suc',M.round(v*0.4))},SEND_INTERVAL)},
-heartbeat:()=>{document.getElementById('modeTitle').textContent='心跳';let a=[0,0,180,255,200,80,0,0,160,240,180,60,0,0,0,0,0,0,0,0];pt=setInterval(()=>{let v=a[s%a.length];s++;set(1,'vib',v);set(1,'rot',M.round(v*0.6));set(2,'vib',M.round(v*0.4))},120)},
-gspot:()=>{document.getElementById('modeTitle').textContent='G点';pt=setInterval(()=>{let r=M.round(140+M.sin(s*0.025)*60);let v=M.round(30+M.sin(s*0.02)*20);s++;set(1,'rot',r);set(1,'vib',v);set(1,'thr',0)},SEND_INTERVAL)},
-alternate:()=>{document.getElementById('modeTitle').textContent='交替';pt=setInterval(()=>{let phase=s%100;let a,b;if(phase<50){a=phase/50;b=1-a}else{b=(phase-50)/50;a=1-b}s++;set(1,'vib',M.round(a*220+30));set(1,'rot',M.round(a*180));set(1,'thr',M.min(M.round(a*6),7));set(2,'suc',M.round(b*200));set(2,'vib',M.round(b*180))},SEND_INTERVAL)},
-denial:()=>{document.getElementById('modeTitle').textContent='禁止';pt=setInterval(()=>{let c=s%80;let v=0,t=0,r=0,sc=0;if(c<60){let p=c/60;v=M.round(p*p*255);t=M.min(M.round(p*7),7);r=M.round(p*200);sc=M.round(p*180)}else if(c<65){v=255;t=7;r=200;sc=200}s++;set(1,'vib',v);set(1,'thr',t);set(1,'rot',r);set(2,'suc',sc)},SEND_INTERVAL)},
-random:()=>{document.getElementById('modeTitle').textContent='随机';let nc=0,cv=0,cr=0,cs=0,ct=0;pt=setInterval(()=>{if(s>=nc){cv=M.round(M.random()*220+30);cr=M.round(M.random()*180);cs=M.round(M.random()*200);ct=M.round(M.random()*7);nc=s+M.round(M.random()*20+5)}s++;set(1,'vib',cv);set(1,'rot',cr);set(1,'thr',ct);set(2,'suc',cs)},SEND_INTERVAL)}
+gentle:()=>{document.getElementById('modeTitle').textContent='温存';pt=bgTimer.set(()=>{let v=M.round(40+M.sin(s*0.02)*20);let r=M.round(30+M.sin(s*0.015)*15);let sc=M.round(35+M.sin(s*0.025)*20);s++;set(1,'vib',v);set(1,'rot',r);set(2,'suc',sc)},SEND_INTERVAL)},
+climb:()=>{document.getElementById('modeTitle').textContent='攀升';pt=bgTimer.set(()=>{let p=M.min(s/200,1);s++;set(1,'vib',M.round(p*255));set(1,'thr',M.min(M.round(p*7),7));set(1,'rot',M.round(p*200));set(2,'suc',M.round(p*200));set(2,'vib',M.round(p*200));if(p>=1)s=0},SEND_INTERVAL)},
+breathe:()=>{document.getElementById('modeTitle').textContent='呼吸';pt=bgTimer.set(()=>{let phase=s%80;let v,r;if(phase<40){v=M.round(20+(phase/40)*120);r=M.round(15+(phase/40)*80)}else{let d=(phase-40)/40;v=M.round(140-d*120);r=M.round(95-d*80)}s++;set(1,'vib',v);set(1,'rot',r);set(2,'suc',M.round(v*0.4))},SEND_INTERVAL)},
+heartbeat:()=>{document.getElementById('modeTitle').textContent='心跳';let a=[0,0,180,255,200,80,0,0,160,240,180,60,0,0,0,0,0,0,0,0];pt=bgTimer.set(()=>{let v=a[s%a.length];s++;set(1,'vib',v);set(1,'rot',M.round(v*0.6));set(2,'vib',M.round(v*0.4))},120)},
+gspot:()=>{document.getElementById('modeTitle').textContent='G点';pt=bgTimer.set(()=>{let r=M.round(140+M.sin(s*0.025)*60);let v=M.round(30+M.sin(s*0.02)*20);s++;set(1,'rot',r);set(1,'vib',v);set(1,'thr',0)},SEND_INTERVAL)},
+alternate:()=>{document.getElementById('modeTitle').textContent='交替';pt=bgTimer.set(()=>{let phase=s%100;let a,b;if(phase<50){a=phase/50;b=1-a}else{b=(phase-50)/50;a=1-b}s++;set(1,'vib',M.round(a*220+30));set(1,'rot',M.round(a*180));set(1,'thr',M.min(M.round(a*6),7));set(2,'suc',M.round(b*200));set(2,'vib',M.round(b*180))},SEND_INTERVAL)},
+denial:()=>{document.getElementById('modeTitle').textContent='禁止';pt=bgTimer.set(()=>{let c=s%80;let v=0,t=0,r=0,sc=0;if(c<60){let p=c/60;v=M.round(p*p*255);t=M.min(M.round(p*7),7);r=M.round(p*200);sc=M.round(p*180)}else if(c<65){v=255;t=7;r=200;sc=200}s++;set(1,'vib',v);set(1,'thr',t);set(1,'rot',r);set(2,'suc',sc)},SEND_INTERVAL)},
+random:()=>{document.getElementById('modeTitle').textContent='随机';let nc=0,cv=0,cr=0,cs=0,ct=0;pt=bgTimer.set(()=>{if(s>=nc){cv=M.round(M.random()*220+30);cr=M.round(M.random()*180);cs=M.round(M.random()*200);ct=M.round(M.random()*7);nc=s+M.round(M.random()*20+5)}s++;set(1,'vib',cv);set(1,'rot',cr);set(1,'thr',ct);set(2,'suc',cs)},SEND_INTERVAL)}
 };if(P[name])P[name]()}
 
 function ui(id,v){let e=document.getElementById(id);if(e)e.value=v;let t=document.getElementById(id+'T');if(t)t.textContent=v}
 function sl(ms){return new Promise(r=>setTimeout(r,ms))}
 
-async function pollState(){try{let r=await fetch('/state');let j=await r.json();if(j.mode!==remoteMode){remoteMode=j.mode;if(j.mode==='stop')doStop();else playP(j.mode)}}catch(e){}}
-setInterval(pollState,500);
+// 轮询：靠 seq 识别新指令。只对比 mode 认不出"同值重发"——手点本地节奏时
+// server 一直是 stop，急停再发一条 stop 就被当成"没变化"忽略，急停会失效
+async function pollState(){try{let r=await fetch('/state');let j=await r.json();
+if(j.seq===undefined){if(j.mode!==remoteMode){remoteMode=j.mode;j.mode==='stop'?doStop():playP(j.mode)}return} // 旧版 server 没有 seq，退回状态对比
+if(remoteSeq===null){remoteSeq=j.seq;remoteMode=j.mode;if(j.mode!=='stop')playP(j.mode);return} // 开页首次对账：接上正在跑的远程节奏
+if(j.seq!==remoteSeq){remoteSeq=j.seq;remoteMode=j.mode;j.mode==='stop'?doStop():playP(j.mode)}
+}catch(e){}}
+bgTimer.set(pollState,500);
 
 // 屏幕常亮：防止息屏后蓝牙 keepalive 和轮询被系统掐断
 let wakeLock=null;
@@ -386,14 +450,18 @@ el.textContent='🔒 屏幕常亮：已开启';
 wakeLock.addEventListener('release',()=>{wakeLock=null;el.textContent='🔒 屏幕常亮：已释放，回到本页自动恢复'});
 }catch(e){el.textContent='🔒 屏幕常亮：开启失败 '+e.message}}
 
-// 回前台恢复：后台期间定时器被浏览器限流，节奏和轮询都会冻结
-// 回来后立即向 server 对账，有节奏在跑就从头重启，防止半死不活的卡壳状态
+// 回前台对账：只在保活失守时做（没开保活，或音频被来电等系统中断过）——
+// 那种情况下后台定时器全冻结，节奏和轮询都停了，需要从 server 重启，防半死不活的卡壳。
+// 保活全程在岗时跳过对账：轮询根本没断过，重启反而会掐掉手点的本地节奏、重置远程节奏相位
 document.addEventListener('visibilitychange',async()=>{
 if(document.visibilityState!=='visible')return;
 if(!wakeLock&&(devs[1].w||devs[2].w))acquireWake();
+let frozen=!kaOsc||(kaCtx&&kaCtx.state==='suspended');
+if(kaOsc&&kaCtx&&kaCtx.state==='suspended')kaCtx.resume();
+if(!frozen)return;
 try{
 let r=await fetch('/state');let j=await r.json();
-remoteMode=j.mode;
+remoteMode=j.mode;if(j.seq!==undefined)remoteSeq=j.seq;
 if(j.mode==='stop'){if(pt)doStop()}else playP(j.mode);
 }catch(e){}
 });
@@ -452,15 +520,17 @@ if(j.mode==='stop'){if(pt)doStop()}else playP(j.mode);
 
 标记词表（`wave/pulse/tease/edge/deep/devour/chaos/storm/gentle/climb/`
 `breathe/heartbeat/gspot/alternate/denial/random/stop`）
-和 Intiface 后端完全一致，AI 提示词不用改。
+和 Intiface 后端完全一致，AI 提示词不用改。想加自定义模式：
+server.py 的 `MODES` 白名单和 toy.html 的 `P` 节奏表两处都要加，
+扩展端的白名单改法见 [USAGE.md](USAGE.md) 第 6 节。
 
 > **每次使用顺序**：玩具开机 → 关掉 nRF Connect 和官方 APP →
 > Termux 跑 `python server.py` → Chrome 开 `http://localhost:9090` →
-> 连接设备 → **分屏**回酒馆聊天，保持本页在前台可见。
-> Android 会限流后台标签页——本页纯后台时节奏和轮询都会冻结，
-> 正式玩必须分屏。页面连接设备后会自动申请屏幕常亮，防息屏掐断蓝牙。
-> 电脑版变体顺序相同：Termux 换成电脑命令行，分屏换成
-> 「toy.html 窗口可见、别最小化」，手机酒馆正常聊。
+> 连接设备 → 回酒馆聊天。连接设备后页面自动开启**屏幕常亮 + 双层后台保活**
+> （Worker 出拍 + 静音音频），切后台节奏一般不再冻结；但各家安卓 ROM
+> 杀后台的激进程度不同，求稳就仍用**分屏**保持本页可见。
+> 电脑版变体顺序相同：Termux 换成电脑命令行，本页单独开一个可见窗口
+> 别最小化，手机酒馆正常聊。
 
 ---
 
@@ -474,9 +544,15 @@ if(j.mode==='stop'){if(pt)doStop()}else playP(j.mode);
 file:// 下全部静默失败——手动全好使、远程全失灵，极难排查。
 AI 链路必须从 `http://localhost:9090` 打开页面（由 server.py 吐出）。
 
-**节奏跑着跑着冻住了**：页面进了后台被 Android 限流。回到本页会自动
-向服务器对账并重启节奏；正式玩请用分屏保持本页前台可见。
-电脑版变体同理：toy.html 窗口被最小化就会冻结，保持窗口可见即可。
+**节奏跑着跑着冻住了**：看页面「后台保活」一行——显示已开启时切后台
+一般不会冻；还是冻了说明保活被系统掐了（来电抢占音频、激进省电策略等），
+回到本页会自动向服务器对账并重启节奏，怕冻就用分屏保持本页前台可见。
+电脑版变体同理：toy.html 窗口被最小化仍可能被限流，保持窗口可见最稳。
+
+**手动点了本地节奏之后，急停/停止标记不停**：server.py 是没有 seq 的旧版。
+旧版只存 mode——手点本地节奏时 server 那头一直是 stop，急停再发 stop
+会被页面当"没变化"忽略。重贴第四步的新版 server.py 即可
+（验证方法：浏览器开 `/state`，返回里有 `seq` 字段就是新版）。
 
 **连上了但不动**：`CMD`/`STOP`/`INIT_SEQ` 还是占位示例没换成真字节。
 把反编译结果 + HTML 发给 AI 让它改。
@@ -497,6 +573,8 @@ AI 链路必须从 `http://localhost:9090` 打开页面（由 server.py 吐出�
 ## 安全
 
 - 全部在你手机本地运行，不经过任何外部服务器
+- 急停有备用入口：扩展的停止之外，浏览器直接访问
+  `http://localhost:9090/stop` 也能让页面在半秒内全停
 - 蓝牙有效范围约 10 米，关掉 Termux 和 Chrome 即彻底断开
 - 反编译仅用于让你自己的设备互通，请遵守当地法律和 APP 用户协议
 
