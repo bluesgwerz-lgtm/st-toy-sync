@@ -486,12 +486,15 @@
             #toysync_icon.toy-active { color: #ff6b81; animation: toysync-pulse 1.1s ease-in-out infinite; }
             @keyframes toysync-pulse { 50% { transform: scale(1.25); opacity: .7; } }
         </style>`);
-        holder.append(`
+        const drawer = $(`
         <div id="toysync_drawer" class="drawer">
             <div class="drawer-toggle">
                 <div id="toysync_icon" class="drawer-icon fa-solid fa-heart-pulse fa-fw closedIcon interactable" tabindex="0"></div>
             </div>
         </div>`);
+        // 插在角色管理抽屉（#rightNavHolder）之前=倒数第二位；顶栏结构改版找不到就退回末尾
+        const rightNav = holder.children('#rightNavHolder');
+        rightNav.length ? rightNav.before(drawer) : holder.append(drawer);
 
         const el = $('#toysync_icon');
         let pressTimer = null, longPressed = false;
