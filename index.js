@@ -12,6 +12,8 @@
         'wave', 'pulse', 'tease', 'edge', 'deep',
         'devour', 'chaos', 'storm', 'gentle', 'climb',
         'breathe', 'heartbeat', 'gspot', 'alternate', 'denial', 'random',
+        'tide', 'punish', 'ruin', 'afterglow', 'stairs', 'countdown',
+        'knock', 'swing', 'tremble', 'lock', 'doubletap', 'mercy',
         'stop',
     ];
 
@@ -296,6 +298,114 @@
             }
         },
     };
+
+    /* —— 四轨子引擎：28 式新增的 12 式专用，配置与算法照搬 funf.html 的 P4 / MSHAPE / engTick ——
+       主节奏 m∈[0,1] 是拍子轴，吮吸/震动各按跟随方式从 m 算波形：
+       通道 = floor + peak×w×e，e=(深度下限+上限)/100，量化到偶数再过硬上限。
+       映射到上面的四通道：吮吸→s、震动→v（按 funf 硬上限归一，满档=1），
+       主节奏显示值 M→t 和 r；微电流 Intiface 没有对应执行器，配置里直接省掉。
+       老 16 式仍走上面的 PATTERNS，不经过这里。 */
+
+    const CAP4 = { suc: 60, vib: 85 };
+    const cosBeat = p => (1 - Math.cos(p * 2 * Math.PI)) / 2;
+    const MSHAPE = {
+        slowdeep: cosBeat,
+        shallowfast: p => 0.3 + 0.4 * cosBeat(p),
+        deepfast: cosBeat,
+        // 潮汐：一周期 4 浪，浪顶和浪底都一浪比一浪高，退不到底
+        tide: p => { const k = Math.min(3, Math.floor(p * 4)), q = p * 4 - k, lo = 0.1 + 0.12 * k, hi = 0.55 + 0.15 * k; return lo + (hi - lo) * cosBeat(q); },
+        // 毁掉：慢推到顶，到顶瞬间塌到 6% 吊着
+        ruin: p => p < 0.85 ? Math.pow(p / 0.85, 1.6) : 0.06,
+        // 台阶：5 级，每级停住带小颤，再上一级
+        stairs: p => { const k = Math.min(4, Math.floor(p * 5)), q = p * 5 - k, lv = 0.2 + 0.2 * k; return lv * (0.92 + 0.08 * Math.sin(q * 10 * Math.PI)); },
+        // 倒数：脉冲越来越密越来越强，最后 15% 突然全停
+        countdown: p => { if (p >= 0.85) return 0; const x = p / 0.85, ph = 4 * x + 16 * x * x; return cosBeat(ph) * (0.5 + 0.5 * x); },
+        // 敲门：一下尖顶，然后停顿
+        knock: p => p < 0.25 ? Math.pow(Math.sin(p / 0.25 * Math.PI), 0.6) : 0,
+        // 秋千：一周期 8 荡，幅度越荡越高
+        swing: p => (1 - Math.cos(p * 16 * Math.PI)) / 2 * (0.15 + 0.85 * p),
+        // 高原：卡在 82% 附近微微起伏，不上不下
+        plateau: p => 0.82 + 0.06 * Math.sin(p * 2 * Math.PI),
+        // 双击：两下快的 + 一段空
+        dtap: p => p < 0.12 ? Math.sin(p / 0.12 * Math.PI) : (p >= 0.2 && p < 0.32) ? Math.sin((p - 0.2) / 0.12 * Math.PI) : 0,
+    };
+
+    // [跟随, floor, peak, 选项]；m = [形状, 次/分钟, 深度下限%, 深度上限%, 选项]
+    const P4 = {
+        tide: { m: ['tide', 1.9, 30, 85], suc: ['delay', 4, 22, { lag: 8 }], vib: ['sync', 6, 52] },
+        punish: { m: ['jolt', 20, 25, 90, { gap: [40, 150], len: 6, base: 0.12 }], suc: ['peak', 0, 30], vib: ['sync', 4, 60] },
+        ruin: { m: ['ruin', 1.5, 30, 90], suc: ['sync', 4, 30], vib: ['sync', 4, 60] },
+        afterglow: { m: ['slowdeep', 16, 20, 45], suc: ['fade', 0, 30, { fade: 900 }], vib: ['fade', 0, 45, { fade: 900 }] },
+        stairs: { m: ['stairs', 1.2, 30, 80], suc: ['sync', 3, 25], vib: ['sync', 4, 58] },
+        countdown: { m: ['countdown', 2, 35, 90], suc: ['sync', 4, 26], vib: ['sync', 0, 58] },
+        knock: { m: ['knock', 36, 40, 80], suc: ['peak', 0, 28], vib: ['sync', 0, 58] },
+        swing: { m: ['swing', 1, 25, 80], suc: ['delay', 3, 24, { lag: 37 }], vib: ['sync', 6, 60] },
+        tremble: { m: ['shallowfast', 140, 45, 60], suc: ['sync', 6, 10], vib: ['sync', 28, 30] },
+        lock: { m: ['plateau', 12, 60, 75], suc: ['ramp', 5, 24, { ramp: 150 }], vib: ['ramp', 8, 48, { ramp: 150 }] },
+        doubletap: { m: ['dtap', 24, 40, 80], suc: ['sync', 4, 22], vib: ['sync', 0, 60] },
+        mercy: { m: ['deepfast', 50, 50, 85, { acc: { t: 900, k: 1.6 } }], suc: ['ramp', 8, 30, { ramp: 900 }], vib: ['ramp', 15, 55, { ramp: 900 }] },
+    };
+
+    function followVal(ch, st, m, mp, g) {
+        switch (ch[0]) {
+            case 'sync': return m;
+            case 'inverse': return 1 - m;
+            case 'delay': { const lag = (ch[3] && ch[3].lag) || 6, b = g.mBuf; return b.length > lag ? b[b.length - 1 - lag] : 0; }
+            case 'offbeat': return MSHAPE[mp[0]] ? MSHAPE[mp[0]]((g.phase + 0.5) % 1) : (g.mBuf.length > 10 ? g.mBuf[g.mBuf.length - 11] : 0);
+            case 'peak': {
+                if (g.mPrev < 0.82 && m >= 0.82) st.b = g.tick;
+                if (st.b == null) return 0;
+                const w = Math.exp(-(g.tick - st.b) / 8);
+                return w < 0.05 ? 0 : w;
+            }
+            case 'ramp': return m * Math.min(1, g.tick / ((ch[3] && ch[3].ramp) || 300));
+            case 'fade': return m * (1 - 0.85 * Math.min(1, g.tick / ((ch[3] && ch[3].fade) || 600))); // 衰减到 15% 留一点温度
+            default: return 0;
+        }
+    }
+
+    const q100 = v => { v = Math.round(v); return v < 0 ? 0 : v > 100 ? 100 : v; };
+
+    function fourTrack(cfg) {
+        let g;
+        return {
+            tick: 100, f: s => {
+                if (s === 0) g = { phase: 0, tick: 0, mPrev: 0, mBuf: [], st: { suc: {}, vib: {} }, jl: { next: null, until: -1 } };
+                const mp = cfg.m;
+                let m;
+                if (mp[0] === 'jolt') {
+                    // 突袭：平时低位小起伏，随机间隔(gap tick)来一发 len tick 的满档
+                    const j = g.jl, o = mp[4];
+                    const rg = () => o.gap[0] + Math.round(Math.random() * (o.gap[1] - o.gap[0]));
+                    if (j.next == null) j.next = g.tick + rg();
+                    if (g.tick >= j.next) { j.until = g.tick + o.len; j.next = j.until + rg(); }
+                    g.phase = (g.phase + mp[1] / 600) % 1;
+                    m = g.tick < j.until ? 1 : o.base + 0.08 * cosBeat(g.phase);
+                } else {
+                    // acc：节奏在 t tick 内加速到 (1+k) 倍
+                    const a = mp[4] && mp[4].acc;
+                    let r = mp[1];
+                    if (a) r *= 1 + a.k * Math.min(1, g.tick / a.t);
+                    g.phase = (g.phase + r / 600) % 1;
+                    m = MSHAPE[mp[0]](g.phase);
+                }
+                g.mBuf.push(m);
+                if (g.mBuf.length > 64) g.mBuf.shift();
+                const e = (mp[2] + mp[3]) / 100, out = {};
+                for (const k of ['suc', 'vib']) {
+                    const ch = cfg[k];
+                    const raw = ch[1] + ch[2] * followVal(ch, g.st[k], m, mp, g) * e;
+                    out[k] = Math.min(CAP4[k], q100(Math.round(raw / 2) * 2));
+                }
+                g.mPrev = m;
+                g.tick++;
+                const M = q100(mp[2] + (mp[3] - mp[2]) * m) / 100;
+                return { v: out.vib / CAP4.vib, t: M, r: M, s: out.suc / CAP4.suc };
+            }
+        };
+    }
+
+    for (const [name, cfg] of Object.entries(P4)) PATTERNS[name] = fourTrack(cfg);
 
     const engine = { timer: null, step: 0, mode: 'stop' };
 

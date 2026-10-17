@@ -21,10 +21,10 @@ Intiface 的设备库覆盖数百款主流蓝牙玩具，无需关心具体型�
 ```
 <toy_sync>
 Real-device sync. Emit one ‹toy:mode› marker per reply when scene intensity shifts. Machine-read only: never mention devices/markers in prose; characters never react to them.
-Modes: wave缓涌 pulse脉冲 tease挑逗 edge吊悬 deep沉重 devour密集 chaos乱序 storm全开 gentle温存 climb渐强 breathe呼吸 heartbeat心跳 gspot碾点 alternate轮换 denial禁绝 random无常 stop停止
+Modes: wave缓涌 pulse脉冲 tease挑逗 edge吊悬 deep沉重 devour密集 chaos乱序 storm全开 gentle温存 climb渐强 breathe呼吸 heartbeat心跳 gspot碾点 alternate轮换 denial禁绝 random无常 tide潮汐 punish惩罚 ruin毁掉 afterglow余韵 stairs台阶 countdown倒数 knock敲门 swing秋千 tremble颤抖 lock锁潮 doubletap双击 mercy求饶 stop停止
 Rules:
 1. Max 1 marker per reply, at the intensity turn
-2. Map pace: buildup breathe/tease/climb, peak storm/devour, denial-play edge/denial, variation chaos/random/alternate, spot-grinding gspot, afterglow gentle/heartbeat
+2. Map pace: buildup breathe/tease/climb/stairs/swing/tide, peak storm/devour/tremble, denial-play edge/denial/lock/ruin/countdown, punishment punish/mercy, variation chaos/random/alternate/knock/doubletap, spot-grinding gspot, afterglow gentle/heartbeat/afterglow
 3. Scene end, fade out, interruption, non-intimate turn: ‹toy:stop› mandatory
 4. User signals discomfort or slow-down in any wording: ‹toy:stop› immediately, overrides all
 5. Intensity unchanged: no marker
@@ -38,7 +38,7 @@ Rules:
 
 ## 模式一览
 
-16 个节奏 + 停止，按气质分三系：
+28 个节奏 + 停止，按气质分三系：
 
 | 系 | 模式 | 体感 | AI 使用时机 |
 |----|------|------|------------|
@@ -46,22 +46,36 @@ Rules:
 | 温柔 | wave | 正弦缓涌 | 温和进行段 |
 | 温柔 | breathe | 缓慢深长的起伏 | 同步呼吸、贴近 |
 | 温柔 | heartbeat | 双跳后长歇 | 安静相拥、余韵 |
+| 温柔 | swing | 来回摆荡，越荡越高 | 慢慢推高的温柔段 |
+| 温柔 | afterglow | 慢波逐渐退到低位 | 高潮后抱着慢慢下来 |
 | 技巧 | tease | 低强度+偶发高峰 | 铺垫、欲擒故纵 |
 | 技巧 | gspot | 旋转主导定点研磨 | 找准位置慢慢碾 |
 | 技巧 | deep | 往复/旋转主导 | 深重节奏 |
 | 技巧 | devour | 吮吸/收缩主导 | 密集段落 |
 | 技巧 | alternate | 两组通道此消彼长 | 注意力被来回调动 |
+| 技巧 | knock | 一下尖顶后停顿 | 一下一下叩问、试探 |
+| 技巧 | doubletap | 两下快的+一段空 | 俏皮逗弄 |
+| 技巧 | tremble | 高频浅颤一刻不停 | 持续颤栗 |
+| 技巧 | stairs | 五级逐级升高，每级停住 | 一步步加码 |
 | 失控 | climb | 0→满爬坡循环 | 逼近顶点 |
+| 失控 | tide | 四浪一浪比一浪高，退不到底 | 层层叠加地逼近 |
 | 失控 | edge | 爬升→骤停循环 | 吊在边缘 |
+| 失控 | lock | 卡在高位不上不下 | 锁住不给 |
 | 失控 | denial | 更陡的爬升骤停 | 禁止式边缘控制 |
+| 失控 | ruin | 慢推到顶后骤塌到底 | 毁掉高潮 |
+| 失控 | countdown | 脉冲越来越密越来越强→骤停 | 倒数、命令式 |
 | 失控 | random | 随机强度随机保持 | 猜不到下一秒 |
+| 失控 | punish | 低位底噪+随机满档突袭 | 惩罚 |
 | 失控 | chaos | 全通道高频乱跳 | 失序、崩溃感 |
 | 失控 | storm | 全通道拉满 | 顶峰 |
 | 失控 | pulse | 连续双峰脉冲 | 情绪升温 |
+| 失控 | mercy | 越来越快越来越重 | 求饶也没用 |
 | — | stop | 全停 | 场景结束/任何非亲密内容 |
 
 节奏引擎输出四个抽象通道（震动/往复/旋转/收缩），按你设备的实际能力自动适配：
 有对应马达就用，没有就折算成震动强度，单马达设备也能获得完整节奏曲线。
+v1.3.0 新增的 12 式移植自四轨引擎（主节奏 + 吮吸/震动/微电流）：吮吸→收缩、
+震动→震动、主节奏→往复和旋转；微电流 Intiface 没有对应执行器，不输出。
 
 ## 设置说明
 
@@ -99,6 +113,18 @@ Rules:
   "下条回复带上 ‹toy:wave›" 可以验证链路
 - **手机切后台后节奏停了**：浏览器对后台标签页限流，切回来会自动恢复；
   建议玩的时候保持酒馆页面在前台（扩展已自动申请屏幕常亮）
+
+## 更新说明
+
+### v1.3.0
+- 模式从 16 式扩到 28 式，新增：tide 潮汐、punish 惩罚、ruin 毁掉、afterglow 余韵、
+  stairs 台阶、countdown 倒数、knock 敲门、swing 秋千、tremble 颤抖、lock 锁潮、
+  doubletap 双击、mercy 求饶
+- 新 12 式由新增的四轨子引擎驱动（长周期形状、随机突袭、渐退、加速），
+  原有 16 式的节奏一点没动
+- 上面的 `<toy_sync>` 提示词已同步到 28 式，**老用户记得把预设里那段换成新版**，
+  不然 AI 不知道有新模式可用
+- HTTP 后端：新模式名照常转发，你的服务器要认得这 12 个名字才会动
 
 ## License
 
