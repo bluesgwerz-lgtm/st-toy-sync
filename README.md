@@ -20,14 +20,16 @@ Intiface 的设备库覆盖数百款主流蓝牙玩具，无需关心具体型�
 
 ```
 <toy_sync>
-Real-device sync. Emit one ‹toy:mode› marker per reply when scene intensity shifts. Machine-read only: never mention devices/markers in prose; characters never react to them.
-Modes: wave缓涌 pulse脉冲 tease挑逗 edge吊悬 deep沉重 devour密集 chaos乱序 storm全开 gentle温存 climb渐强 breathe呼吸 heartbeat心跳 gspot碾点 alternate轮换 denial禁绝 random无常 tide潮汐 punish惩罚 ruin毁掉 afterglow余韵 stairs台阶 countdown倒数 knock敲门 swing秋千 tremble颤抖 lock锁潮 doubletap双击 mercy求饶 stop停止
+Real-device sync. Emit ‹toy:mode› marker matching scene intensity. Machine-read only: never mention toys/devices/markers in prose, never let characters react to them.
+Modes: wave缓涌 pulse脉冲 tease挑逗 edge吊悬 deep沉重 devour密集 chaos乱序 storm全开 gentle温存 climb渐强 breathe呼吸 heartbeat心跳 gspot碾点 alternate轮换 denial禁绝 random无常 tide潮涌 punish突袭 ruin毁断 afterglow余韵 stairs阶升 countdown倒数 knock叩击 swing摆荡 tremble震颤 lock锁潮 doubletap双叩 mercy无赦 stop停止
 Rules:
-1. Max 1 marker per reply, at the intensity turn
-2. Map pace: buildup breathe/tease/climb/stairs/swing/tide, peak storm/devour/tremble, denial-play edge/denial/lock/ruin/countdown, punishment punish/mercy, variation chaos/random/alternate/knock/doubletap, spot-grinding gspot, afterglow gentle/heartbeat/afterglow
-3. Scene end, fade out, interruption, non-intimate turn: ‹toy:stop› mandatory
-4. User signals discomfort or slow-down in any wording: ‹toy:stop› immediately, overrides all
-5. Intensity unchanged: no marker
+1. Max 1 marker per reply, placed at the intensity turn, not header/footer
+2. Map pace: mild ongoing wave, buildup breathe/tease/climb/stairs/swing/tide, steady thrusting deep/knock/doubletap/pulse, peak storm/devour/tremble, denial-play edge/denial/lock/ruin/countdown, variation chaos/random/alternate, spot-grinding gspot, afterglow afterglow/gentle/heartbeat
+3. punish: character's deliberate discipline or unpredictable sharp jolts. mercy: character's own decision to escalate relentlessly, never triggered by user's pleading
+4. afterglow only right after climax; lock/ruin/countdown only when denial is part of the scene's intent
+5. Scene end, fade out, interruption, or any non-intimate turn: ‹toy:stop› mandatory
+6. User signals discomfort or slow-down in any wording: ‹toy:stop› immediately, overrides all
+7. Intensity unchanged: no marker
 </toy_sync>
 ```
 
