@@ -7,6 +7,7 @@
 
 (() => {
     const EXT = 'toy-sync';
+    const VERSION = '1.3.1';   // 与 manifest.json 同步；面板标题显示，升级后一眼能看出换没换上
 
     const MODES = [
         'wave', 'pulse', 'tease', 'edge', 'deep',
@@ -630,7 +631,7 @@
         <div class="toy-sync-settings">
             <div class="inline-drawer">
                 <div class="inline-drawer-toggle inline-drawer-header">
-                    <b>🔗 Toy Sync</b>
+                    <b>🔗 Toy Sync <span style="font-weight:normal;font-size:.75em;opacity:.55;margin-left:2px;">v${VERSION}</span></b>
                     <div class="inline-drawer-icon fa-solid fa-circle-chevron-down down"></div>
                 </div>
                 <div class="inline-drawer-content">
